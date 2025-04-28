@@ -28,6 +28,18 @@ base_url = "https://data.binance.vision/data/futures/um/daily/trades/"
 spot_base_url = "https://data.binance.vision/data/spot/daily/trades/"
 MAX_RETRIES = 3
 RETRY_INTERVAL = 600
+status_file = "yesterday_download_status.json"
+
+def load_status():
+    if os.path.exists(status_file):
+        with open(status_file, 'r') as f:
+            return json.load(f)
+    else:
+        return {}
+
+def save_status(status):
+    with open(status_file, 'w') as f:
+        json.dump(status, f, indent=4)
 
 
 # **动态创建日志**
@@ -201,59 +213,87 @@ def download_with_retry(file_url, file_path):
     return False
 
 
-def download_yesterday_trade_data(coin, yesterday_str, trade_type):
+def download_trade_data(coin, date_str, trade_type):
     base_dir = "."  # 数据存放目录
     os.makedirs(coin, exist_ok=True)
     coin_dir = os.path.join(base_dir, coin)
+
     if trade_type == "futures":
         coin_file_url = base_url + f"{coin}USDT/"
-        file_url = coin_file_url + f"{coin}USDT-trades-{yesterday_str}.zip"
-        file_path = os.path.join(coin, f"{coin}USDT-trades-{yesterday_str}.zip")
+        file_url = coin_file_url + f"{coin}USDT-trades-{date_str}.zip"
+        file_path = os.path.join(coin_dir, f"{coin}USDT-trades-{date_str}.zip")
     else:
         coin_file_url = spot_base_url + f"{coin}/"
-        file_url = coin_file_url + f"{coin}-trades-{yesterday_str}.zip"
-        file_path = os.path.join(coin, f"{coin}-trades-{yesterday_str}.zip")
-    print(file_url)
-    # 下载文件
+        file_url = coin_file_url + f"{coin}-trades-{date_str}.zip"
+        file_path = os.path.join(coin_dir, f"{coin}-trades-{date_str}.zip")
 
+    print(file_url)
+
+    # 下载文件
     print(f"正在处理文件：{file_url}")
+    status = False
     if not os.path.exists(file_path):
-        success = download_with_retry(file_url, file_path)
-        if not success:
+        status = download_with_retry(file_url, file_path)
+        if not status:
             print(f"文件最终下载失败：{file_url}")
-            return success
+            return status, ''
     else:
         print(f"文件已存在：{file_path}")
     # 获取 ZIP 文件列表
-    zip_path_list = [(os.path.join(coin_dir, f), coin, trade_type) for f in os.listdir(coin_dir) if f.endswith(".zip")]
-    return zip_path_list
+    return status, (file_path, coin, trade_type)
+
+
+def check_file_status_and_download(coin_list, data_type):
+    status = load_status()
+    today = pd.Timestamp.today()
+    zip_files = []
+    for coin in coin_list:
+        last_download_str = status.get(coin)
+
+        if last_download_str:
+            last_download_date = pd.to_datetime(last_download_str)
+        else:
+            # 如果是第一次下载，默认从前天开始
+            last_download_date = today - pd.Timedelta(days=2)
+
+        # 目标下载到昨天
+        target_date = today - pd.Timedelta(days=1)
+
+        current_date = last_download_date + pd.Timedelta(days=1)
+
+        while current_date <= target_date:
+            date_str = current_date.strftime('%Y-%m-%d')
+            print(f"处理 {coin} 日期 {date_str}")
+
+            success, zip_path = download_trade_data(coin, date_str, data_type)
+
+            if success:
+                # 更新成功下载时间
+                status[coin] = date_str
+                save_status(status)
+                zip_files.append(zip_path)
+            else:
+                # 下载失败，跳过，等待下次定时任务补
+                print(f"下载失败，跳过 {coin} {date_str}")
+                break  # 这一天没下载成功，后续日期也先不做
+
+            current_date += pd.Timedelta(days=1)
+    return zip_files
 
 
 # **多进程管理**
 def main():
-    yesterday_str = (pd.Timestamp.today() - pd.Timedelta(days=2)).strftime('%Y-%m-%d')
     zip_files = []
-    for coin in coin_list:
-        zip_path_list = download_yesterday_trade_data(coin, yesterday_str, "futures")
-        if zip_path_list:
-            zip_files.extend(zip_path_list)
-        else:
-            continue
-    for coin in futures_coin_list:
-        zip_path_list = download_yesterday_trade_data(coin, yesterday_str, "futures")
-        if zip_path_list:
-            zip_files.extend(zip_path_list)
-        else:
-            continue
-    for coin in spot_coin_list:
-        zip_path_list = download_yesterday_trade_data(coin, yesterday_str, "spot")
-        if zip_path_list:
-            zip_files.extend(zip_path_list)
-        else:
-            continue
-    # **创建多进程处理 ZIP**
-    # with multiprocessing.Pool(processes=len(zip_files)) as pool:
-    #     pool.starmap(process_zip, [zip_path for zip_path in zip_files])
+    zip_path_list = check_file_status_and_download(coin_list, "futures")
+    zip_files.extend(zip_path_list)
+    zip_path_list = check_file_status_and_download(futures_coin_list, "futures")
+    zip_files.extend(zip_path_list)
+    zip_path_list = check_file_status_and_download(spot_coin_list, "spot")
+    zip_files.extend(zip_path_list)
+    print(zip_files)
+    # # **创建多进程处理 ZIP**
+    with multiprocessing.Pool(processes=NUM_WORKERS) as pool:
+        pool.starmap(process_zip, [zip_path for zip_path in zip_files])
 
     logging.info("所有 ZIP 处理完成")
 
