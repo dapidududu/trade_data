@@ -3,36 +3,52 @@ import os
 import pandas as pd
 import requests
 
-# date_range = pd.date_range(start="2022-01", end=pd.Timestamp.today(), freq="D")
-date_range = pd.date_range(start="2022-01", end="2022-03", freq="MS")
+month_date_range = pd.date_range(start="2022-01", end=pd.Timestamp.today(), freq="MS")
+# 获取本月的第一天
+first_day_of_this_month = pd.Timestamp.today().replace(day=1)
+# 上个月最后一天 = 本月第一天减一天
+last_day_of_last_month = first_day_of_this_month - pd.Timedelta(days=1)
 
-# 转换为 "YYYY-MM" 格式的列表
-date_list = date_range.strftime("%Y-%m").tolist()
+# 用 last_day_of_last_month 作为 start
+day_date_range = pd.date_range(start=last_day_of_last_month, end=pd.Timestamp.today(), freq="D")
 
-print(date_list)
+month_date_list = month_date_range.strftime("%Y-%m").tolist()
+day_date_list = day_date_range.strftime("%Y-%m-%d").tolist()
+print(month_date_list)
+print(day_date_list)
 
-base_url = "https://data.binance.vision/data/futures/um/monthly/trades/"
 
-coin_list = ['BTC', "ETH", "XRP", "BNB", "SOL", "TRUMP", "DOGE", "ADA", "1000PEPE"]
+month_base_url = "https://data.binance.vision/data/futures/um/monthly/trades/"
+day_base_url = "https://data.binance.vision/data/futures/um/daily/trades/"
+coin_list = ['XLM', 'HBAR', 'AAVE']
 # coin_list = ['ETH']
+
+file_list = []
+
 for coin in coin_list:
     os.makedirs(coin, exist_ok=True)
-    coin_file_url = base_url + f"{coin}USDT/"
-    for date in date_list:
+    for date in month_date_list:
+        coin_file_url = month_base_url + f"{coin}USDT/"
         file_url = coin_file_url + f"{coin}USDT-trades-{date}.zip"
         file_path = os.path.join(coin, f"{coin}USDT-trades-{date}.zip")
-        print(file_url)
+        file_list.append([file_url, file_path])
+    for date in day_date_list:
+        coin_file_url = day_base_url + f"{coin}USDT/"
+        file_url = coin_file_url + f"{coin}USDT-trades-{date}.zip"
+        file_path = os.path.join(coin, f"{coin}USDT-trades-{date}.zip")
+        file_list.append([file_url, file_path])
 
-        # 下载文件
-        if not os.path.exists(file_path):
-            response = requests.get(file_url, stream=True)
-            if response.status_code == 200:
-                with open(file_path, "wb") as f:
-                    for chunk in response.iter_content(chunk_size=1024):
-                        f.write(chunk)
-                print(f"Saved: {file_path}")
-            else:
-                print(f"Failed to download: {file_url} (Status: {response.status_code})")
 
-        break
-    break
+for file_data in file_list:
+    # 下载文件
+    if not os.path.exists(file_data[1]):
+        print(file_data[0])
+        response = requests.get(file_data[0], stream=True)
+        if response.status_code == 200:
+            with open(file_data[1], "wb") as f:
+                for chunk in response.iter_content(chunk_size=1024):
+                    f.write(chunk)
+            print(f"Saved: {file_data[1]}")
+        else:
+            print(f"Failed to download: {file_data[0]} (Status: {response.status_code})")
+

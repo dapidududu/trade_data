@@ -18,15 +18,18 @@ import pytz
 shanghai_tz = pytz.timezone("Asia/Shanghai")
 # Kafka 配置
 KAFKA_BROKER = ["43.134.2.101:9092", "43.156.229.202:9092", "43.134.66.240:9092"]
-coin_list = ['BTC', "ETH", "XRP"]
-futures_coin_list = ["BNB", "SOL", "TRUMP", "DOGE", "ADA", "1000PEPE"]
-spot_coin_list = ['BTCFDUSD']
+#coin_list = ['BTC', "ETH", "XRP"]
+coin_list = []
+#futures_coin_list = ["BNB", "SOL", "TRUMP", "DOGE", "ADA", "1000PEPE"]
+futures_coin_list = ["1000PEPE"]
+# spot_coin_list = ['BTCFDUSD']
+spot_coin_list = []
 BATCH_SIZE = 1000000  # 每次上传的行数
 NUM_WORKERS = 8  # 进程数，提高并发度
 # 下载配置
 base_url = "https://data.binance.vision/data/futures/um/daily/trades/"
 spot_base_url = "https://data.binance.vision/data/spot/daily/trades/"
-MAX_RETRIES = 0
+MAX_RETRIES = 1
 RETRY_INTERVAL = 600
 
 
@@ -73,22 +76,28 @@ def parse_timestamp(ts):
     if length == 13:
         dt = epoch + timedelta(milliseconds=ts)
         unit = "毫秒"
+        timestamp_ms = ts
     elif length == 16:
         dt = epoch + timedelta(microseconds=ts)
         unit = "微秒"
+        timestamp_ms = ts // 1000
     elif length == 19:
         dt = epoch + timedelta(microseconds=ts // 1000)
         unit = "纳秒（已转为微秒）"
+        timestamp_ms = ts // 1_000_000
     else:
         dt = epoch + timedelta(seconds=ts)
         unit = "秒"
+        timestamp_ms = ts * 1000
 
     dt_utc = dt.replace(tzinfo=pytz.utc)
     dt_shanghai = dt_utc.astimezone(shanghai_tz)
 
     return {
+        "unit": unit,
         "UTC": dt_utc.strftime('%Y-%m-%d %H:%M:%S.%f %Z'),
-        "Shanghai": dt_shanghai.strftime("%Y-%m-%d")
+        "Shanghai": dt_shanghai.strftime("%Y-%m-%d"),
+        "timestamp_ms": timestamp_ms
     }
 
 
@@ -118,14 +127,16 @@ def send_to_kafka(csv_path, coin, producer, logger, trade_type):
             row = {key: numpy.float64(value) if isinstance(value, Decimal) else value for key, value in row.items()}
             if isinstance(row['id'], str):  # 过滤非法数据
                 continue
-            row['dt'] = parse_timestamp(row['time'])['Shanghai']
+            time_dict = parse_timestamp(row['time'])
+            row['dt'] = time_dict['Shanghai']
+            row['time'] = time_dict['timestamp_ms']
             batch.append(row)
         topic = re.sub(r'^\d+', '', coin)
         if trade_type == "spot":
-            topic = f'{coin}_SPOT'
+            topic = f'{topic}_SPOT'
         else:
             if coin in futures_coin_list:
-                topic = f'{coin}USDT_FUTURES'
+                topic = f'{topic}USDT_FUTURES'
         for message in batch:
             producer.send(topic, value=message)
 
@@ -222,7 +233,7 @@ def download_yesterday_trade_data(coin, yesterday_str, trade_type):
 
 # **多进程管理**
 def main():
-    date_range = pd.date_range(start="2025-04-15", end="2025-04-21", freq="D")
+    date_range = pd.date_range(start="2025-04-20", end="2025-04-28", freq="D")
     date_list = date_range.strftime("%Y-%m-%d").tolist()
     zip_files = []
     for date_str in date_list:
@@ -245,7 +256,7 @@ def main():
             else:
                 continue
     # **创建多进程处理 ZIP**
-    with multiprocessing.Pool(processes=len(zip_files)) as pool:
+    with multiprocessing.Pool(processes=NUM_WORKERS) as pool:
         pool.starmap(process_zip, [zip_path for zip_path in zip_files])
 
     logging.info("所有 ZIP 处理完成")
@@ -253,4 +264,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

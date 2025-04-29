@@ -129,10 +129,10 @@ def send_to_kafka(csv_path, coin, producer, logger, trade_type):
 
     topic = re.sub(r'^\d+', '', coin)
     if trade_type == "spot":
-        topic = f'{coin}_SPOT'
+        topic = f'{topic}_SPOT'
     else:
         if coin in futures_coin_list:
-            topic = f'{coin}USDT_FUTURES'
+            topic = f'{topic}USDT_FUTURES'
 
     for chunk_num, chunk in enumerate(df_chunks):
         messages = chunk.to_dict(orient="records")
