@@ -21,6 +21,7 @@ KAFKA_BROKER = ["43.134.2.101:9092", "43.156.229.202:9092", "43.134.66.240:9092"
 coin_list = ['BTC', "ETH", "XRP"]
 futures_coin_list = ["BNB", "SOL", "TRUMP", "DOGE", "ADA", "1000PEPE"]
 spot_coin_list = ['BTCFDUSD']
+USDC_futures_coin_list = ["SOLUSDC", "XRPUSDC", "DOGEUSDC", "1000PEPEUSDC", "SUIUSDC", "BNBUSDC", "ENAUSDC"]
 BATCH_SIZE = 1000000  # 每次上传的行数
 NUM_WORKERS = 8  # 进程数，提高并发度
 # 下载配置
@@ -109,6 +110,20 @@ def parse_timestamp(ts):
         "timestamp_ms": timestamp_ms
     }
 
+def convert_value(value):
+    """转换数据类型：数值转换为 float，布尔值转换为 bool，字符串保持 str"""
+    if isinstance(value, str):
+        # 处理布尔值
+        if value.lower() in ["true", "false"]:
+            return value.lower() == "true"
+        # 处理数值
+        try:
+            return numpy.float64(value) if "." in value else int(value)
+        except ValueError:
+            return value  # 如果转换失败，保持原始字符串
+    elif isinstance(value, Decimal):
+        return numpy.float64(value)
+    return value  # 其他类型保持不变
 
 # **解压 ZIP 文件**
 def extract_zip(zip_path, extract_to, logger):
@@ -133,14 +148,15 @@ def send_to_kafka(csv_path, coin, producer, logger, trade_type):
     else:
         if coin in futures_coin_list:
             topic = f'{topic}USDT_FUTURES'
-
+        elif coin in USDC_futures_coin_list:
+            topic = f'{topic}_FUTURES'
     for chunk_num, chunk in enumerate(df_chunks):
         messages = chunk.to_dict(orient="records")
         batch = []
         for row in messages:
             if trade_type == "spot":
                 row.pop("None", None)
-            row = {key: numpy.float64(value) if isinstance(value, Decimal) else value for key, value in row.items()}
+            row = {key: convert_value(value) for key, value in row.items()}
             if isinstance(row['id'], str):  # 过滤非法数据
                 continue
             time_dict = parse_timestamp(row['time'])
@@ -219,9 +235,14 @@ def download_trade_data(coin, date_str, trade_type):
     coin_dir = os.path.join(base_dir, coin)
 
     if trade_type == "futures":
-        coin_file_url = base_url + f"{coin}USDT/"
-        file_url = coin_file_url + f"{coin}USDT-trades-{date_str}.zip"
-        file_path = os.path.join(coin_dir, f"{coin}USDT-trades-{date_str}.zip")
+        if coin in USDC_futures_coin_list:
+            coin_file_url = base_url + f"{coin}/"
+            file_url = coin_file_url + f"{coin}-trades-{date_str}.zip"
+            file_path = os.path.join(coin, f"{coin}-trades-{date_str}.zip")
+        else:
+            coin_file_url = base_url + f"{coin}USDT/"
+            file_url = coin_file_url + f"{coin}USDT-trades-{date_str}.zip"
+            file_path = os.path.join(coin, f"{coin}USDT-trades-{date_str}.zip")
     else:
         coin_file_url = spot_base_url + f"{coin}/"
         file_url = coin_file_url + f"{coin}-trades-{date_str}.zip"
@@ -238,6 +259,7 @@ def download_trade_data(coin, date_str, trade_type):
             print(f"文件最终下载失败：{file_url}")
             return status, ''
     else:
+        status = True
         print(f"文件已存在：{file_path}")
     # 获取 ZIP 文件列表
     return status, (file_path, coin, trade_type)
@@ -287,6 +309,8 @@ def main():
     zip_path_list = check_file_status_and_download(coin_list, "futures")
     zip_files.extend(zip_path_list)
     zip_path_list = check_file_status_and_download(futures_coin_list, "futures")
+    zip_files.extend(zip_path_list)
+    zip_path_list = check_file_status_and_download(USDC_futures_coin_list, "futures")
     zip_files.extend(zip_path_list)
     zip_path_list = check_file_status_and_download(spot_coin_list, "spot")
     zip_files.extend(zip_path_list)

@@ -18,10 +18,14 @@ shanghai_tz = pytz.timezone("Asia/Shanghai")
 KAFKA_BROKER = ["43.134.2.101:9092", "43.156.229.202:9092", "43.134.66.240:9092"]
 BATCH_SIZE = 1000000  # 每次上传的行数
 NUM_WORKERS = 4  # 进程数，提高并发度
-coin_list = ['BTC', "ETH", "XRP"]
-futures_coin_list = ["BNB", "SOL", "TRUMP", "DOGE", "ADA", "1000PEPE"]
-spot_coin_list = ['BTCFDUSD']
-
+# coin_list = ['BTC', "ETH", "XRP"]
+# futures_coin_list = ["BNB", "SOL", "TRUMP", "DOGE", "ADA", "1000PEPE"]
+# spot_coin_list = ['BTCFDUSD']
+# USDC_futures_coin_list = ["SOLUSDC", "XRPUSDC", "DOGEUSDC", "1000PEPEUSDC", "SUIUSDC", "BNBUSDC", "ENAUSDC"]
+USDC_futures_coin_list = ["1000PEPEUSDC"]
+coin_list = []
+futures_coin_list = []
+spot_coin_list = []
 
 # **动态创建日志**
 def setup_logger(log_file):
@@ -73,6 +77,20 @@ def parse_timestamp(ts):
         "Shanghai": dt_shanghai.strftime("%Y-%m-%d")
     }
 
+def convert_value(value):
+    """转换数据类型：数值转换为 float，布尔值转换为 bool，字符串保持 str"""
+    if isinstance(value, str):
+        # 处理布尔值
+        if value.lower() in ["true", "false"]:
+            return value.lower() == "true"
+        # 处理数值
+        try:
+            return numpy.float64(value) if "." in value else int(value)
+        except ValueError:
+            return value  # 如果转换失败，保持原始字符串
+    elif isinstance(value, Decimal):
+        return numpy.float64(value)
+    return value  # 其他类型保持不变
 
 # **初始化 Kafka 生产者**
 def init_kafka_producer():
@@ -95,7 +113,6 @@ def extract_zip(zip_path, extract_to, logger):
 # **CSV 解析 & 发送 Kafka**
 def send_to_kafka(csv_path, coin, producer, logger, trade_type):
     logger.info(f"Processing: {csv_path}")
-    coin = re.sub(r'^\d+', '', coin)
 
     if trade_type == "futures":
         column_names = ["id", "price", "qty", "quote_qty", "time", "is_buyer_maker"]
@@ -109,14 +126,15 @@ def send_to_kafka(csv_path, coin, producer, logger, trade_type):
     else:
         if coin in futures_coin_list:
             topic = f'{coin}USDT_FUTURES'
-
+        elif coin in USDC_futures_coin_list:
+            topic = f'{topic}_FUTURES'
     for chunk_num, chunk in enumerate(df_chunks):
         messages = chunk.to_dict(orient="records")
         batch = []
         for row in messages:
             if trade_type == "spot":
                 row.pop("None", None)
-            row = {key: numpy.float64(value) if isinstance(value, Decimal) else value for key, value in row.items()}
+            row = {key: convert_value(value) for key, value in row.items()}
             if isinstance(row['id'], str):  # 过滤非法数据
                 continue
             row['dt'] = parse_timestamp(row['time'])['Shanghai']
@@ -173,6 +191,8 @@ def main():
     for coin in coin_list:
         coin_type_list.append([coin, "futures"])
     for coin in futures_coin_list:
+        coin_type_list.append([coin, "futures"])
+    for coin in USDC_futures_coin_list:
         coin_type_list.append([coin, "futures"])
     for coin in spot_coin_list:
         coin_type_list.append([coin, "spot"])

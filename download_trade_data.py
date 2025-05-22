@@ -20,24 +20,40 @@ print(day_date_list)
 
 month_base_url = "https://data.binance.vision/data/futures/um/monthly/trades/"
 day_base_url = "https://data.binance.vision/data/futures/um/daily/trades/"
-coin_list = ['XLM', 'HBAR', 'AAVE']
-# coin_list = ['ETH']
+coin_list = []
+USDC_futures_coin_list = ["SOLUSDC",
+    "XRPUSDC",
+    "DOGEUSDC",
+    "1000PEPEUSDC"]
 
 file_list = []
+if coin_list:
+    for coin in coin_list:
+        os.makedirs(coin, exist_ok=True)
+        for date in month_date_list:
+            coin_file_url = month_base_url + f"{coin}USDT/"
+            file_url = coin_file_url + f"{coin}USDT-trades-{date}.zip"
+            file_path = os.path.join(coin, f"{coin}USDT-trades-{date}.zip")
+            file_list.append([file_url, file_path])
+        for date in day_date_list:
+            coin_file_url = day_base_url + f"{coin}USDT/"
+            file_url = coin_file_url + f"{coin}USDT-trades-{date}.zip"
+            file_path = os.path.join(coin, f"{coin}USDT-trades-{date}.zip")
+            file_list.append([file_url, file_path])
 
-for coin in coin_list:
-    os.makedirs(coin, exist_ok=True)
-    for date in month_date_list:
-        coin_file_url = month_base_url + f"{coin}USDT/"
-        file_url = coin_file_url + f"{coin}USDT-trades-{date}.zip"
-        file_path = os.path.join(coin, f"{coin}USDT-trades-{date}.zip")
-        file_list.append([file_url, file_path])
-    for date in day_date_list:
-        coin_file_url = day_base_url + f"{coin}USDT/"
-        file_url = coin_file_url + f"{coin}USDT-trades-{date}.zip"
-        file_path = os.path.join(coin, f"{coin}USDT-trades-{date}.zip")
-        file_list.append([file_url, file_path])
-
+if USDC_futures_coin_list:
+    for coin in USDC_futures_coin_list:
+        os.makedirs(coin, exist_ok=True)
+        for date in month_date_list:
+            coin_file_url = month_base_url + f"{coin}/"
+            file_url = coin_file_url + f"{coin}-trades-{date}.zip"
+            file_path = os.path.join(coin, f"{coin}-trades-{date}.zip")
+            file_list.append([file_url, file_path])
+        for date in day_date_list:
+            coin_file_url = day_base_url + f"{coin}/"
+            file_url = coin_file_url + f"{coin}-trades-{date}.zip"
+            file_path = os.path.join(coin, f"{coin}-trades-{date}.zip")
+            file_list.append([file_url, file_path])
 
 for file_data in file_list:
     # 下载文件
