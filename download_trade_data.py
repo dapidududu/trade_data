@@ -20,11 +20,15 @@ print(day_date_list)
 
 month_base_url = "https://data.binance.vision/data/futures/um/monthly/trades/"
 day_base_url = "https://data.binance.vision/data/futures/um/daily/trades/"
+spot_month_base_url = "https://data.binance.vision/data/spot/monthly/trades/"
+spot_day_base_url = "https://data.binance.vision/data/spot/daily/trades/"
+
 coin_list = []
 USDC_futures_coin_list = ["SOLUSDC",
     "XRPUSDC",
     "DOGEUSDC",
     "1000PEPEUSDC"]
+spot_coin_list = ['BTCFDUSD']
 
 file_list = []
 if coin_list:
@@ -51,6 +55,20 @@ if USDC_futures_coin_list:
             file_list.append([file_url, file_path])
         for date in day_date_list:
             coin_file_url = day_base_url + f"{coin}/"
+            file_url = coin_file_url + f"{coin}-trades-{date}.zip"
+            file_path = os.path.join(coin, f"{coin}-trades-{date}.zip")
+            file_list.append([file_url, file_path])
+
+if spot_coin_list:
+    for coin in spot_coin_list:
+        os.makedirs(coin, exist_ok=True)
+        for date in month_date_list:
+            coin_file_url = spot_month_base_url + f"{coin}/"
+            file_url = coin_file_url + f"{coin}-trades-{date}.zip"
+            file_path = os.path.join(coin, f"{coin}-trades-{date}.zip")
+            file_list.append([file_url, file_path])
+        for date in day_date_list:
+            coin_file_url = spot_day_base_url + f"{coin}/"
             file_url = coin_file_url + f"{coin}-trades-{date}.zip"
             file_path = os.path.join(coin, f"{coin}-trades-{date}.zip")
             file_list.append([file_url, file_path])

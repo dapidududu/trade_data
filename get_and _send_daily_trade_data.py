@@ -17,7 +17,7 @@ import pytz
 # 定义上海时区
 shanghai_tz = pytz.timezone("Asia/Shanghai")
 # Kafka 配置
-KAFKA_BROKER = ["43.134.2.101:9092", "43.156.229.202:9092", "43.134.66.240:9092"]
+KAFKA_BROKER = ["43.159.56.125:9092", "43.163.1.156:9092", "43.156.2.129:9092"]
 #coin_list = ['BTC', "ETH", "XRP"]
 coin_list = []
 #futures_coin_list = ["BNB", "SOL", "TRUMP", "DOGE", "ADA", "1000PEPE"]

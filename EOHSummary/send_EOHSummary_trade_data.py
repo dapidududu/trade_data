@@ -15,16 +15,16 @@ import pytz
 # 定义上海时区
 shanghai_tz = pytz.timezone("Asia/Shanghai")
 # Kafka 配置
-KAFKA_BROKER = ["43.159.56.125:9092", "43.163.1.156:9092", "43.156.2.129:9092"]
+KAFKA_BROKER = ["43.134.2.101:9092", "43.156.229.202:9092", "43.134.66.240:9092"]
 BATCH_SIZE = 1000000  # 每次上传的行数
 NUM_WORKERS = 4  # 进程数，提高并发度
-# coin_list = ['BTC', "ETH", "XRP"]
-# futures_coin_list = ["BNB", "SOL", "TRUMP", "DOGE", "ADA", "1000PEPE"]
-# spot_coin_list = ['BTCFDUSD']
-# USDC_futures_coin_list = ["SOLUSDC", "XRPUSDC", "DOGEUSDC", "1000PEPEUSDC", "SUIUSDC", "BNBUSDC", "ENAUSDC"]
-USDC_futures_coin_list = ["1000PEPEUSDC"]
-futures_coin_list = []
-spot_coin_list = []
+# coin_list = ["BNBUSDT",
+# "BTCUSDT",
+# "DOGEUSDT",
+# "ETHUSDT",
+# "XRPUSDT"]
+coin_list = [
+"BTCUSDT"]
 
 # **动态创建日志**
 def setup_logger(log_file):
@@ -84,7 +84,12 @@ def convert_value(value):
             return value.lower() == "true"
         # 处理数值
         try:
-            return numpy.float64(value) if "." in value else int(value)
+            if "." in value or 'e' in value.lower():
+                val = numpy.float64(value)
+                return f"{val:.12f}".rstrip('0').rstrip('.')
+            else:
+                int(value)
+            # return numpy.float64(value) if "." in value or 'e' in value.lower() else int(value)
         except ValueError:
             return value  # 如果转换失败，保持原始字符串
     elif isinstance(value, Decimal):
@@ -110,41 +115,38 @@ def extract_zip(zip_path, extract_to, logger):
 
 
 # **CSV 解析 & 发送 Kafka**
-def send_to_kafka(csv_path, coin, producer, logger, trade_type):
+def send_to_kafka(csv_path, coin, producer, logger):
     logger.info(f"Processing: {csv_path}")
-
-    if trade_type == "futures":
-        column_names = ["id", "price", "qty", "quote_qty", "time", "is_buyer_maker"]
-    else:
-        column_names = ["id", "price", "qty", "quote_qty", "time", "is_buyer_maker", "None"]
+    column_names = [
+        "date", "hour", "symbol", "underlying", "type", "strike", "open", "high", "low", "close",
+        "volume_contracts", "volume_usdt", "best_bid_price", "best_ask_price",
+        "best_bid_qty", "best_ask_qty", "best_buy_iv", "best_sell_iv",
+        "mark_price", "mark_iv", "delta", "gamma", "vega", "theta",
+        "openinterest_contracts", "openinterest_usdt"
+    ]
     df_chunks = pd.read_csv(csv_path, names=column_names, chunksize=BATCH_SIZE)
 
     topic = re.sub(r'^\d+', '', coin)
-    if trade_type == "spot":
-        topic = f'{topic}_SPOT'
-    else:
-        if coin in futures_coin_list:
-            topic = f'{topic}USDT_FUTURES'
-        elif coin in USDC_futures_coin_list:
-            topic = f'{topic}_FUTURES'
+    print(topic)
     for chunk_num, chunk in enumerate(df_chunks):
         messages = chunk.to_dict(orient="records")
         batch = []
         for row in messages:
-            if trade_type == "spot":
-                row.pop("None", None)
+            if not row.get('best_buy_iv'):
+                row['best_buy_iv'] = ''
             row = {key: convert_value(value) for key, value in row.items()}
-            if isinstance(row['id'], str):  # 过滤非法数据
+            if row['date'] == "date":  # 过滤非法数据
                 continue
-            row['dt'] = parse_timestamp(row['time'])['Shanghai']
+            # row['dt'] = parse_timestamp(row['time'])['Shanghai']
             batch.append(row)
+        print(batch)
 
-        for message in batch:
-            producer.send(topic, value=message)
+        # for message in batch:
+        #     producer.send(topic, value=message)
 
         logger.info(f"{csv_path} - chunk_num: {chunk_num} - {len(batch)} 条数据上传")
 
-    producer.flush()
+    # producer.flush()
     logger.info(f"Uploaded to Kafka: {csv_path}")
 
 
@@ -159,7 +161,7 @@ def cleanup_files(file_path, logger):
 
 
 # **处理 ZIP & 生成日志**
-def process_zip(zip_path, coin, trade_type):
+def process_zip(zip_path, coin):
     """每个进程独立处理一个 ZIP 文件及其 CSV"""
     extract_folder = os.path.join(os.path.dirname(zip_path), f"extracted_{os.getpid()}")  # 进程独占文件夹
     os.makedirs(extract_folder, exist_ok=True)
@@ -173,7 +175,7 @@ def process_zip(zip_path, coin, trade_type):
 
     for csv_file in os.listdir(extract_folder):
         csv_path = os.path.join(extract_folder, csv_file)
-        send_to_kafka(csv_path, coin, producer, logger, trade_type)  # 发送数据
+        send_to_kafka(csv_path, coin, producer, logger)  # 发送数据
         cleanup_files(csv_path, logger)  # 删除 CSV
 
     cleanup_files(zip_path, logger)  # 删除 ZIP
@@ -186,16 +188,8 @@ def process_zip(zip_path, coin, trade_type):
 def main():
     base_dir = "."  # 数据存放目录
     total_processes = []
-    coin_type_list = []
-    for coin in futures_coin_list:
-        coin_type_list.append([coin, "futures"])
-    for coin in USDC_futures_coin_list:
-        coin_type_list.append([coin, "futures"])
-    for coin in spot_coin_list:
-        coin_type_list.append([coin, "spot"])
-
-    for coin in coin_type_list:
-        coin_dir = os.path.join(base_dir, coin[0])
+    for coin in coin_list:
+        coin_dir = os.path.join(base_dir, coin)
 
         # 获取 ZIP 文件列表
         zip_files = [os.path.join(coin_dir, f) for f in os.listdir(coin_dir) if f.endswith(".zip")]
@@ -203,7 +197,7 @@ def main():
         # 为每个币种启动一个进程池
         if zip_files:
             pool = multiprocessing.Pool(processes=NUM_WORKERS)
-            process_args = [(zip_path, coin[0], coin[1]) for zip_path in zip_files]
+            process_args = [(zip_path, coin) for zip_path in zip_files]
 
             # 异步启动，不阻塞主循环
             p = pool.starmap_async(process_zip, process_args)

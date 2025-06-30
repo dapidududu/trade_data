@@ -22,7 +22,7 @@ NUM_WORKERS = 4  # 进程数，提高并发度
 # futures_coin_list = ["BNB", "SOL", "TRUMP", "DOGE", "ADA", "1000PEPE"]
 # spot_coin_list = ['BTCFDUSD']
 # USDC_futures_coin_list = ["SOLUSDC", "XRPUSDC", "DOGEUSDC", "1000PEPEUSDC", "SUIUSDC", "BNBUSDC", "ENAUSDC"]
-USDC_futures_coin_list = ["1000PEPEUSDC"]
+USDC_futures_coin_list = []
 futures_coin_list = []
 spot_coin_list = []
 
@@ -121,10 +121,10 @@ def send_to_kafka(csv_path, coin, producer, logger, trade_type):
 
     topic = re.sub(r'^\d+', '', coin)
     if trade_type == "spot":
-        topic = f'{topic}_SPOT'
+        topic = f'{coin}_SPOT'
     else:
         if coin in futures_coin_list:
-            topic = f'{topic}USDT_FUTURES'
+            topic = f'{coin}USDT_FUTURES'
         elif coin in USDC_futures_coin_list:
             topic = f'{topic}_FUTURES'
     for chunk_num, chunk in enumerate(df_chunks):
@@ -159,27 +159,22 @@ def cleanup_files(file_path, logger):
 
 
 # **处理 ZIP & 生成日志**
-def process_zip(zip_path, coin, trade_type):
+def process_zip(folder_path, coin, trade_type):
     """每个进程独立处理一个 ZIP 文件及其 CSV"""
-    extract_folder = os.path.join(os.path.dirname(zip_path), f"extracted_{os.getpid()}")  # 进程独占文件夹
-    os.makedirs(extract_folder, exist_ok=True)
 
-    log_file = f"log_{os.path.basename(zip_path).replace('.zip', '.log')}"
-    logger = setup_logger(log_file)
-
-    extract_zip(zip_path, extract_folder, logger)  # 解压 ZIP
 
     producer = init_kafka_producer()  # Kafka 生产者
 
-    for csv_file in os.listdir(extract_folder):
-        csv_path = os.path.join(extract_folder, csv_file)
+    for csv_file in os.listdir(folder_path):
+        log_file = f"log_{os.path.basename(csv_file).replace('.csv', '.log')}"
+        logger = setup_logger(log_file)
+        csv_path = os.path.join(folder_path, csv_file)
         send_to_kafka(csv_path, coin, producer, logger, trade_type)  # 发送数据
         cleanup_files(csv_path, logger)  # 删除 CSV
 
-    cleanup_files(zip_path, logger)  # 删除 ZIP
-    cleanup_files(extract_folder, logger)  # 删除解压目录
+        cleanup_files(folder_path, logger)  # 删除解压目录
+        logger.info(f"Processing complete for {folder_path}")
     producer.close()
-    logger.info(f"Processing complete for {zip_path}")
 
 
 # **多进程管理**
@@ -197,13 +192,16 @@ def main():
     for coin in coin_type_list:
         coin_dir = os.path.join(base_dir, coin[0])
 
-        # 获取 ZIP 文件列表
-        zip_files = [os.path.join(coin_dir, f) for f in os.listdir(coin_dir) if f.endswith(".zip")]
-
+        # 获取所有以 extracted_ 开头的文件夹
+        folders_to_process = [
+            os.path.join(coin_dir, name)
+            for name in os.listdir(coin_dir)
+            if os.path.isdir(os.path.join(coin_dir, name)) and name.startswith("extracted_")
+        ]
         # 为每个币种启动一个进程池
-        if zip_files:
+        if folders_to_process:
             pool = multiprocessing.Pool(processes=NUM_WORKERS)
-            process_args = [(zip_path, coin[0], coin[1]) for zip_path in zip_files]
+            process_args = [(folder_path, coin[0], coin[1]) for folder_path in folders_to_process]
 
             # 异步启动，不阻塞主循环
             p = pool.starmap_async(process_zip, process_args)

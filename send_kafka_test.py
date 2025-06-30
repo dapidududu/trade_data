@@ -25,9 +25,9 @@ from kafka import KafkaConsumer
 def get_data():
     # Kafka 消费者配置
     consumer = KafkaConsumer(
-        "ETC",
+        "BTCFDUSD_OrderBook",
         bootstrap_servers=KAFKA_BROKER,
-        auto_offset_reset="latest",
+        auto_offset_reset="earliest",
         enable_auto_commit=True,
         value_deserializer=lambda x: json.loads(x.decode("utf-8"))
     )
@@ -38,5 +38,5 @@ def get_data():
         print("收到消息:", message.value)
 
 if __name__ == "__main__":
-    send_message()
+    # send_message()
     get_data()

@@ -17,11 +17,24 @@ import pytz
 # 定义上海时区
 shanghai_tz = pytz.timezone("Asia/Shanghai")
 # Kafka 配置
-KAFKA_BROKER = ["43.134.2.101:9092", "43.156.229.202:9092", "43.134.66.240:9092"]
-coin_list = ['BTC', "ETH", "XRP"]
-futures_coin_list = ["BNB", "SOL", "TRUMP", "DOGE", "ADA", "1000PEPE"]
+KAFKA_BROKER = ["43.159.56.125:9092", "43.163.1.156:9092", "43.156.2.129:9092"]
+# coin_list = ['BTC', "ETH", "XRP"]
+futures_coin_list = ["BNB", "SOL", "TRUMP", "DOGE", "ADA", "1000PEPE", 'LTC', 'TRX', 'SUI', 'XLM', 'HBAR', 'AAVE',
+                     'AVAX', 'LINK', 'BCH', 'NEAR']
+# spot_coin_list = ['BTCFDUSD']
+# USDC_futures_coin_list = ["SOLUSDC", "XRPUSDC", "DOGEUSDC", "1000PEPEUSDC", "SUIUSDC", "BNBUSDC", "ENAUSDC",
+#                           "TRUMPUSDC", "ETHFIUSDC", "PNUTUSDC", "BOMEUSDC", "KAITOUSDC", "ADAUSDC", "1000BONKUSDC",
+#                           "ORDIUSDC", "AVAXUSDC", "LINKUSDC", "LTCUSDC", "WLDUSDC", "FILUSDC", "ARBUSDC",
+#                           "1000SHIBUSDC", "CRVUSDC", "TIAUSDC", "NEARUSDC", "BCHUSDC", "HBARUSDC", "NEOUSDC", "IPUSDC"]
+
+coin_list = []
+futures_coin_list = ['BTC', "ETH", "XRP", "BNB", "SOL", "TRUMP", "DOGE", "ADA", "1000PEPE", 'LTC', 'TRX', 'SUI', 'XLM', 'HBAR']
 spot_coin_list = ['BTCFDUSD']
-USDC_futures_coin_list = ["SOLUSDC", "XRPUSDC", "DOGEUSDC", "1000PEPEUSDC", "SUIUSDC", "BNBUSDC", "ENAUSDC"]
+USDC_futures_coin_list = ["SOLUSDC", "DOGEUSDC", "1000PEPEUSDC", "SUIUSDC", "BNBUSDC", "ENAUSDC",
+                          "TRUMPUSDC", "PNUTUSDC", "BOMEUSDC", "KAITOUSDC", "1000BONKUSDC",
+                          "ORDIUSDC", "LINKUSDC", "LTCUSDC", "WLDUSDC", "FILUSDC", "ARBUSDC",
+                          "1000SHIBUSDC", "TIAUSDC", "NEARUSDC", "HBARUSDC", "NEOUSDC", "IPUSDC"]
+
 BATCH_SIZE = 1000000  # 每次上传的行数
 NUM_WORKERS = 8  # 进程数，提高并发度
 # 下载配置
@@ -31,12 +44,14 @@ MAX_RETRIES = 3
 RETRY_INTERVAL = 600
 status_file = "yesterday_download_status.json"
 
+
 def load_status():
     if os.path.exists(status_file):
         with open(status_file, 'r') as f:
             return json.load(f)
     else:
         return {}
+
 
 def save_status(status):
     with open(status_file, 'w') as f:
@@ -110,20 +125,6 @@ def parse_timestamp(ts):
         "timestamp_ms": timestamp_ms
     }
 
-def convert_value(value):
-    """转换数据类型：数值转换为 float，布尔值转换为 bool，字符串保持 str"""
-    if isinstance(value, str):
-        # 处理布尔值
-        if value.lower() in ["true", "false"]:
-            return value.lower() == "true"
-        # 处理数值
-        try:
-            return numpy.float64(value) if "." in value else int(value)
-        except ValueError:
-            return value  # 如果转换失败，保持原始字符串
-    elif isinstance(value, Decimal):
-        return numpy.float64(value)
-    return value  # 其他类型保持不变
 
 # **解压 ZIP 文件**
 def extract_zip(zip_path, extract_to, logger):
@@ -173,6 +174,22 @@ def send_to_kafka(csv_path, coin, producer, logger, trade_type):
     logger.info(f"Uploaded to Kafka: {csv_path}")
 
 
+def convert_value(value):
+    """转换数据类型：数值转换为 float，布尔值转换为 bool，字符串保持 str"""
+    if isinstance(value, str):
+        # 处理布尔值
+        if value.lower() in ["true", "false"]:
+            return value.lower() == "true"
+        # 处理数值
+        try:
+            return numpy.float64(value) if "." in value else int(value)
+        except ValueError:
+            return value  # 如果转换失败，保持原始字符串
+    elif isinstance(value, Decimal):
+        return numpy.float64(value)
+    return value  # 其他类型保持不变
+
+
 # **清理已处理的文件**
 def cleanup_files(file_path, logger):
     if os.path.exists(file_path):
@@ -186,7 +203,8 @@ def cleanup_files(file_path, logger):
 # **处理 ZIP & 生成日志**
 def process_zip(zip_path, coin, trade_type):
     """每个进程独立处理一个 ZIP 文件及其 CSV"""
-    extract_folder = os.path.join(os.path.dirname(zip_path), f"extracted_{os.path.basename(zip_path).replace('.zip', '')}")
+    extract_folder = os.path.join(os.path.dirname(zip_path),
+                                  f"extracted_{os.path.basename(zip_path).replace('.zip', '')}")
     os.makedirs(extract_folder, exist_ok=True)
 
     log_file = f"log/log_{os.path.basename(zip_path).replace('.zip', '.log')}"
@@ -310,9 +328,9 @@ def main():
     zip_files.extend(zip_path_list)
     zip_path_list = check_file_status_and_download(futures_coin_list, "futures")
     zip_files.extend(zip_path_list)
-    zip_path_list = check_file_status_and_download(USDC_futures_coin_list, "futures")
-    zip_files.extend(zip_path_list)
     zip_path_list = check_file_status_and_download(spot_coin_list, "spot")
+    zip_files.extend(zip_path_list)
+    zip_path_list = check_file_status_and_download(USDC_futures_coin_list, "futures")
     zip_files.extend(zip_path_list)
     print(zip_files)
     # # **创建多进程处理 ZIP**
