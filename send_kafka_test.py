@@ -2,7 +2,7 @@ import json
 from kafka import KafkaProducer
 # #43.134.2.101 43.156.229.202 43.134.66.240
 # # # Kafka 配置
-KAFKA_BROKER = ["43.134.2.101:9092","43.156.229.202:9092","43.134.66.240:9092"]  # 你的 Kafka 服务器地址
+KAFKA_BROKER = ["43.159.56.125:9092", "43.163.1.156:9092", "43.156.2.129:9092"]  # 你的 Kafka 服务器地址
 KAFKA_TOPIC = 'ETH'  # Kafka 主题
 BATCH_SIZE = 10  # 每次上传的行数
 

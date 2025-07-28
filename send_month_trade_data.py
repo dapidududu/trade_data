@@ -58,22 +58,28 @@ def parse_timestamp(ts):
     if length == 13:
         dt = epoch + timedelta(milliseconds=ts)
         unit = "毫秒"
+        timestamp_ms = ts
     elif length == 16:
         dt = epoch + timedelta(microseconds=ts)
         unit = "微秒"
+        timestamp_ms = ts // 1000
     elif length == 19:
         dt = epoch + timedelta(microseconds=ts // 1000)
         unit = "纳秒（已转为微秒）"
+        timestamp_ms = ts // 1_000_000
     else:
         dt = epoch + timedelta(seconds=ts)
         unit = "秒"
+        timestamp_ms = ts * 1000
 
     dt_utc = dt.replace(tzinfo=pytz.utc)
     dt_shanghai = dt_utc.astimezone(shanghai_tz)
 
     return {
+        "unit": unit,
         "UTC": dt_utc.strftime('%Y-%m-%d %H:%M:%S.%f %Z'),
-        "Shanghai": dt_shanghai.strftime("%Y-%m-%d")
+        "Shanghai": dt_shanghai.strftime("%Y-%m-%d"),
+        "timestamp_ms": timestamp_ms
     }
 
 def convert_value(value):
@@ -136,7 +142,9 @@ def send_to_kafka(csv_path, coin, producer, logger, trade_type):
             row = {key: convert_value(value) for key, value in row.items()}
             if isinstance(row['id'], str):  # 过滤非法数据
                 continue
-            row['dt'] = parse_timestamp(row['time'])['Shanghai']
+            time_dict = parse_timestamp(row['time'])
+            row['dt'] = time_dict['Shanghai']
+            row['time'] = time_dict['timestamp_ms']
             batch.append(row)
 
         for message in batch:
