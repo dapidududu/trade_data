@@ -13,9 +13,9 @@ import signal
 import sys
 
 # ========== 配置区域 ==========
-KAFKA_TOPIC = "BTCFDUSD_OrderBook"
+KAFKA_TOPIC = "ETHFDUSD_OrderBook"
 KAFKA_SERVERS = ["43.159.56.125:9092", "43.163.1.156:9092", "43.156.2.129:9092"]
-symbol = "btcfdusd"
+symbol = "ethfdusd"
 
 api_key = ""
 api_secret = ""
@@ -35,7 +35,7 @@ producer = KafkaProducer(
     retries=10,
     retry_backoff_ms=1000,
     request_timeout_ms=60000,
-    # delivery_timeout_ms=120000,
+    delivery_timeout_ms=120000,
     max_block_ms=60000,
 )
 

@@ -11,12 +11,12 @@ last_day_of_last_month = first_day_of_this_month - pd.Timedelta(days=1)
 
 # 用 last_day_of_last_month 作为 start
 day_date_range = pd.date_range(start=last_day_of_last_month, end=pd.Timestamp.today(), freq="D")
+day_date_range = pd.date_range(start="2025-08-07", end="2025-08-09", freq="D")
 
 month_date_list = month_date_range.strftime("%Y-%m").tolist()
 day_date_list = day_date_range.strftime("%Y-%m-%d").tolist()
 print(month_date_list)
 print(day_date_list)
-
 
 month_base_url = "https://data.binance.vision/data/futures/um/monthly/trades/"
 day_base_url = "https://data.binance.vision/data/futures/um/daily/trades/"

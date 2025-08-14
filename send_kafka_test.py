@@ -3,7 +3,7 @@ from kafka import KafkaProducer
 # #43.134.2.101 43.156.229.202 43.134.66.240
 # # # Kafka 配置
 KAFKA_BROKER = ["43.159.56.125:9092", "43.163.1.156:9092", "43.156.2.129:9092"]  # 你的 Kafka 服务器地址
-KAFKA_TOPIC = 'ETH'  # Kafka 主题
+KAFKA_TOPIC = 'ETHFDUSD_OrderBook'  # Kafka 主题
 BATCH_SIZE = 10  # 每次上传的行数
 
 def send_message():
@@ -25,7 +25,7 @@ from kafka import KafkaConsumer
 def get_data():
     # Kafka 消费者配置
     consumer = KafkaConsumer(
-        "BTCFDUSD_OrderBook",
+        "ETHFDUSD_OrderBook",
         bootstrap_servers=KAFKA_BROKER,
         auto_offset_reset="earliest",
         enable_auto_commit=True,

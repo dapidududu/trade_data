@@ -18,22 +18,16 @@ import pytz
 shanghai_tz = pytz.timezone("Asia/Shanghai")
 # Kafka 配置
 KAFKA_BROKER = ["43.159.56.125:9092", "43.163.1.156:9092", "43.156.2.129:9092"]
-# coin_list = ['BTC', "ETH", "XRP"]
-futures_coin_list = ["BNB", "SOL", "TRUMP", "DOGE", "ADA", "1000PEPE", 'LTC', 'TRX', 'SUI', 'XLM', 'HBAR', 'AAVE',
-                     'AVAX', 'LINK', 'BCH', 'NEAR']
-# spot_coin_list = ['BTCFDUSD']
-# USDC_futures_coin_list = ["SOLUSDC", "XRPUSDC", "DOGEUSDC", "1000PEPEUSDC", "SUIUSDC", "BNBUSDC", "ENAUSDC",
-#                           "TRUMPUSDC", "ETHFIUSDC", "PNUTUSDC", "BOMEUSDC", "KAITOUSDC", "ADAUSDC", "1000BONKUSDC",
-#                           "ORDIUSDC", "AVAXUSDC", "LINKUSDC", "LTCUSDC", "WLDUSDC", "FILUSDC", "ARBUSDC",
-#                           "1000SHIBUSDC", "CRVUSDC", "TIAUSDC", "NEARUSDC", "BCHUSDC", "HBARUSDC", "NEOUSDC", "IPUSDC"]
-
-coin_list = []
-futures_coin_list = ['BTC', "ETH", "XRP", "BNB", "SOL", "TRUMP", "DOGE", "ADA", "1000PEPE", 'LTC', 'TRX', 'SUI', 'XLM', 'HBAR']
 spot_coin_list = ['BTCFDUSD']
-USDC_futures_coin_list = ["SOLUSDC", "DOGEUSDC", "1000PEPEUSDC", "SUIUSDC", "BNBUSDC", "ENAUSDC",
-                          "TRUMPUSDC", "PNUTUSDC", "BOMEUSDC", "KAITOUSDC", "1000BONKUSDC",
-                          "ORDIUSDC", "LINKUSDC", "LTCUSDC", "WLDUSDC", "FILUSDC", "ARBUSDC",
-                          "1000SHIBUSDC", "TIAUSDC", "NEARUSDC", "HBARUSDC", "NEOUSDC", "IPUSDC"]
+USDC_futures_coin_list = ["SOLUSDC", "XRPUSDC", "DOGEUSDC", "1000PEPEUSDC", "SUIUSDC", "BNBUSDC", "ENAUSDC",
+                          "TRUMPUSDC", "ETHFIUSDC", "PNUTUSDC", "BOMEUSDC", "KAITOUSDC", "ADAUSDC", "1000BONKUSDC",
+                          "ORDIUSDC", "AVAXUSDC", "LINKUSDC", "LTCUSDC", "WLDUSDC", "FILUSDC", "ARBUSDC",
+                          "1000SHIBUSDC", "CRVUSDC", "TIAUSDC", "NEARUSDC", "BCHUSDC", "HBARUSDC", "NEOUSDC", "IPUSDC"]
+
+futures_coin_list = ['BTC', "ETH", "XRP", "BNB", "SOL", "TRUMP", "DOGE", "ADA", "1000PEPE", 'LTC', 'TRX', 'SUI', 'XLM',
+                     'HBAR', 'AAVE', 'AVAX', 'LINK', 'BCH', 'NEAR', 'LAYER', 'PNUT', 'WIF', 'ENA', 'S', 'KAITO',
+                     'SOLV', 'AUCTION', '1000SHIB', 'DOT', 'RUNE', 'TON']
+
 
 BATCH_SIZE = 1000000  # 每次上传的行数
 NUM_WORKERS = 8  # 进程数，提高并发度
