@@ -123,36 +123,29 @@ def push_to_kafka(results, symbol: str):
 def fetch_incremental_data(symbols: List[str]):
 
     progress = load_progress()
-    now_ms = ms_timestamp(datetime.utcnow())
-    log_file = f"log/log_funding_rate{datetime.utcfromtimestamp(now_ms/1000)}.log"
+    now = datetime.utcnow()
+    now_ms = ms_timestamp(now)
+    log_file = f"log/log_funding_rate{now.strftime('%Y-%m-%d %H:%M:%S')}.log"
     logger = setup_logger(log_file)
-
+    logger.info(f"所有币对的增量数据更新截止：{datetime.utcfromtimestamp(now_ms/1000)}")
     for symbol in symbols:
         start_ms = progress.get(symbol, ms_timestamp(datetime(2022, 1, 1)))
         logger.info(f"开始获取 {symbol} 增量数据 (from {datetime.utcfromtimestamp(start_ms/1000)} UTC)...")
 
-        while start_ms < now_ms:
-            results = fetch_funding_rate(symbol, logger, start_ms, now_ms, limit=1000)
+        results = fetch_funding_rate(symbol, logger, start_ms, now_ms, limit=1000)
 
-            if not results:
-                # 没有数据 → 跳过 8 小时
-                start_ms += 8 * 60 * 60 * 1000
-                progress[symbol] = start_ms
-                save_progress(progress)
-                logger.info(f"{symbol} 在 {datetime.utcfromtimestamp(start_ms/1000)} UTC 没有增量数据，跳过")
-                continue
+        if not results:
+            logger.info(f"{symbol} 在 {datetime.utcfromtimestamp(start_ms/1000)} UTC 没有增量数据，跳过")
+            continue
 
-            push_to_kafka(results, symbol)
+        push_to_kafka(results, symbol)
+        last_time = results[-1]["fundingTime"]
+        progress[symbol] = last_time + 1
+        save_progress(progress)
+        logger.info(f"{symbol} 增量{len(results)}条数据，更新至 {datetime.utcfromtimestamp(last_time/1000)} UTC")
 
-            last_time = results[-1]["fundingTime"]
-            progress[symbol] = last_time + 1
-            save_progress(progress)
-            # 下一次循环用更新后的 start_ms
-            start_ms = progress[symbol]
-            logger.info(f"{symbol} 增量更新至 {datetime.utcfromtimestamp(last_time/1000)} UTC")
-
-            if last_time >= now_ms:
-                break
+        if last_time >= now_ms:
+            break
 
     producer.flush()
     logger.info("所有币对的增量数据已更新 ✅")
